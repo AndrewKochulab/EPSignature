@@ -9,7 +9,7 @@
 import UIKit
 
 open class EPSignatureView: UIView {
-
+    
     // MARK: - Private Vars
     
     fileprivate var bezierPoints = [CGPoint](repeating: CGPoint(), count: 5)
@@ -24,13 +24,18 @@ open class EPSignatureView: UIView {
     open var strokeWidth: CGFloat = 2.0
     open var isSigned: Bool = false
     
+    open var drawingBegan: (() -> Void)?
+    open var drawingEnded: (() -> Void)?
+    
     // MARK: - Initializers
     
     required public init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
         self.backgroundColor = UIColor.clear
         bezierPath.lineWidth = strokeWidth
+        addTapGesture()
         addLongPressGesture()
+        addPinchGesture()
         minPoint = CGPoint(x: self.frame.size.width,y: self.frame.size.height)
     }
     
@@ -38,7 +43,9 @@ open class EPSignatureView: UIView {
         super.init(frame: frame)
         self.backgroundColor = UIColor.clear
         bezierPath.lineWidth = strokeWidth
+        addTapGesture()
         addLongPressGesture()
+        addPinchGesture()
         minPoint = CGPoint(x: self.frame.size.width,y: self.frame.size.height)
     }
     
@@ -46,17 +53,34 @@ open class EPSignatureView: UIView {
         bezierPath.stroke()
         strokeColor.setStroke()
         bezierPath.stroke()
-
     }
     
     
     // MARK: - Touch Functions
     
+    func addTapGesture() {
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(EPSignatureView.viewTapped(_:)))
+        addGestureRecognizer(tapGesture)
+    }
+    
+    func viewTapped(_ gesture: UILongPressGestureRecognizer) {
+        drawingBegan?()
+    }
+    
+    func addPinchGesture() {
+        let pinchGesture = UIPinchGestureRecognizer(target: self, action: #selector(EPSignatureView.viewPinched(_:)))
+        addGestureRecognizer(pinchGesture)
+    }
+    
+    func viewPinched(_ gesture: UIPinchGestureRecognizer) {
+        drawingBegan?()
+    }
+    
     func addLongPressGesture() {
         //Long press gesture is used to keep clear dots in the canvas
         let longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(EPSignatureView.longPressed(_:)))
         longPressGesture.minimumPressDuration = 1.5
-        self.addGestureRecognizer(longPressGesture)
+        addGestureRecognizer(longPressGesture)
     }
     
     func longPressed(_ gesture: UILongPressGestureRecognizer) {
@@ -68,11 +92,13 @@ open class EPSignatureView: UIView {
     }
     
     override open func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-
+        
         if let currentPoint = touchPoint(touches) {
             isSigned = true
             bezierPoints[0] = currentPoint
             bezierCounter = 0
+            
+            drawingBegan?()
         }
     }
     
@@ -80,7 +106,7 @@ open class EPSignatureView: UIView {
         if let currentPoint = touchPoint(touches) {
             bezierCounter += 1
             bezierPoints[bezierCounter] = currentPoint
-
+            
             //Smoothing is done by Bezier Equations where curves are calculated based on four concurrent  points drawn
             if bezierCounter == 4 {
                 bezierPoints[3] = CGPoint(x: (bezierPoints[2].x + bezierPoints[4].x) / 2 , y: (bezierPoints[2].y + bezierPoints[4].y) / 2)
@@ -91,11 +117,14 @@ open class EPSignatureView: UIView {
                 bezierPoints[1] = bezierPoints[4]
                 bezierCounter = 1
             }
+            
+            drawingBegan?()
         }
     }
     
     override open func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         bezierCounter = 0
+        drawingEnded?()
     }
     
     func touchPoint(_ touches: Set<UITouch>) -> CGPoint? {
@@ -122,7 +151,7 @@ open class EPSignatureView: UIView {
     //MARK: Utility Methods
     
     /** Clears the drawn paths in the canvas
-    */
+     */
     open func clear() {
         isSigned = false
         bezierPath.removeAllPoints()
@@ -144,7 +173,7 @@ open class EPSignatureView: UIView {
     
     /** Returns the rect of signature image drawn in the canvas. This can very very useful in croping out the unwanted empty areas in the signature image returned.
      */
-
+    
     open func getSignatureBoundsInCanvas() -> CGRect {
         return CGRect(x: minPoint.x, y: minPoint.y, width: maxPoint.x - minPoint.x, height: maxPoint.y - minPoint.y)
     }
@@ -156,7 +185,7 @@ open class EPSignatureView: UIView {
             NSKeyedArchiver.archiveRootObject(bezierPath, toFile: localPath)
         }
     }
-
+    
     open func loadSignature(_ filePath: String) {
         if let path = getPath(filePath) {
             isSigned = true
